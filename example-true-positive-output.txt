@@ -1,0 +1,122 @@
+   ____                              _          _
+  / ___|_ __ ___   ___  _ __ ___    | |    __ _| | _____
+ | |  _| '__/ _ \ / _ \| '_ ` _ \   | |   / _` | |/ / _ \
+ | |_| | | | (_) | (_) | | | | | |  | |__| (_| |   <  __/
+  \____|_|  \___/ \___/|_| |_| |_|  |_____\__,_|_|\_\___|
+                                                          
+  Mini Shai-Hulud Hunter  |  TanStack worm, 2026-05-11
+  ---------------------------------------------------------------
+  WARNING: this worm family has a dead-man wiper. If a SEVERE
+  finding fires, DO NOT rotate npm/GitHub tokens first. Read the
+  remediation block printed at the end of this scan before acting.
+  ---------------------------------------------------------------
+[i]     Scan root: /Users/jdoe/code
+[i]     Started:   2026-05-12T14:33:08Z
+
+== 1/6  Filesystem scan for worm artifact filenames ==
+[SEVERE] Worm filename present (verify hash 40063140668f3d59cd03ffc0a445c8368f61cb998ab3389e157d008484afd4c1): /Users/jdoe/code/payments-frontend/node_modules/@tanstack/react-router/router_init.js
+
+== 2/6  Lockfile scan for compromised package@version ==
+[SEVERE] @tanstack/react-router@1.169.5 resolved in /Users/jdoe/code/payments-frontend/package-lock.json
+
+== 3/6  node_modules package.json version check ==
+[SEVERE] Installed: @tanstack/react-router@1.169.5  (/Users/jdoe/code/payments-frontend/node_modules/@tanstack/react-router/package.json)
+
+== 4/6  Malicious @tanstack/setup optionalDependency marker ==
+[SEVERE] @tanstack/setup dep reference in: /Users/jdoe/code/payments-frontend/package.json
+[SEVERE] Malicious commit hash 79ac49eedf774dd4b0cfa308722bc463cfe5885c referenced in: /Users/jdoe/code/payments-frontend/package.json
+
+== 5/6  Credential / staging artifact check ==
+
+== 6/6  GitHub Actions workflow tampering ==
+[SEVERE] Suspicious workflow content: /Users/jdoe/code/payments-frontend/.github/workflows/release.yml
+
+== Summary ==
+[i]     Finished:  2026-05-12T14:33:11Z
+[i]     Findings:  6  (severe: 6)
+
+[!] TRUE POSITIVE LIKELY
+
+    ============================================================
+    READ THIS BEFORE TOUCHING TOKENS
+    ============================================================
+    This worm family carries a dead-man wiper. If it loses BOTH
+    npm and GitHub exfil/propagation channels while still resident,
+    it can detonate:
+        find ~ -type f -writable -user $USER -print0 \
+          | xargs -0 shred -uvz -n 1
+    Rotating tokens FIRST on a still-infected host is what trips it.
+    Containment comes before rotation. Follow the order below.
+
+    ------------------------------------------------------------
+    PHASE 1  -  CONTAIN  (do these before anything else)
+    ------------------------------------------------------------
+    1. Network-isolate the host from npmjs.org, github.com, and the
+       Session network (lokinet, oxen) at the egress firewall.
+       Do NOT just `ifconfig down` from the host - shell history /
+       sudo / running daemons may trigger the worm.
+    2. Stop background runners that could re-execute the payload:
+         - launchctl unload any com.* LaunchAgents added today (mac)
+         - systemctl --user stop / disable suspicious units (linux)
+         - kill any node/bun processes whose argv contains
+           router_init / router_runtime / tanstack_runner / setup.mjs
+       Do this from a fresh shell so .bashrc/.zshrc hooks don't fire.
+    3. Snapshot the box (full disk image / EBS snapshot / Time Machine).
+       Wiper-resistant forensic copy BEFORE you change anything.
+    4. Delete the worm artifacts identified above. Do NOT `rm -rf
+       node_modules && npm reinstall` yet - reinstall pulls the same
+       poisoned lockfile entries back. Pin clean versions in
+       package.json + delete the lockfile first.
+
+    ------------------------------------------------------------
+    PHASE 2  -  KILL CI/CD PERSISTENCE  (still no token rotation)
+    ------------------------------------------------------------
+    5. In every affected GitHub org, BEFORE rotating any creds:
+         a. Delete unrecognised self-hosted runners (org + repo level).
+         b. Remove unrecognised GitHub Actions workflows, especially
+            files referencing shai-hulud, tanstack_runner, setup.mjs,
+            discussion.yaml, or scheduled cron triggers added today.
+         c. Disable Actions on the repo while you triage.
+         d. Revoke GitHub Actions OIDC federation grants to npm for
+            every affected repo. (Done at npmjs.com -> trusted
+            publishers, NOT in GitHub.) This stops the worm from
+            republishing even if it still has the OIDC token.
+    6. In npm: revoke (do not rotate) any granular automation tokens
+       associated with affected packages. Unpublish or deprecate any
+       suspect versions you control.
+
+    ------------------------------------------------------------
+    PHASE 3  -  ROTATE  (only after Phases 1-2 are done)
+    ------------------------------------------------------------
+    7. Rotate from the most-blast-radius outward:
+         AWS instance roles + static keys -> Vault tokens ->
+         k8s SA tokens -> NX_CLOUD_ACCESS_TOKEN -> cloud provider
+         creds in CI secrets -> GitHub PATs -> npm tokens last.
+       Reason: npm/GitHub token rotation is what trips the wiper.
+       By the time you rotate those, the host should be offline /
+       wiped / rebuilt anyway.
+    8. Rebuild affected developer workstations from a known-good
+       image. Do not "clean" them - the payload is 2.3 MB obfuscated
+       JS with persistence hooks; you will miss something.
+
+    ------------------------------------------------------------
+    PHASE 4  -  HUNT  (assume lateral movement)
+    ------------------------------------------------------------
+    9. Pull GitHub audit log for the org for the window
+       2026-05-11T19:20Z -> now. Look for:
+         - repo creations with random Dune-flavored names
+         - repos with description "A Mini Shai-Hulud has Appeared"
+           (marker repos: siridar-ghola-567, tleilaxu-ornithopter-43)
+         - branches named shai-hulud or PRs adding workflows
+         - new SSH keys / deploy keys / PATs created
+         - workflows referencing discussion.yaml (related Shai-Hulud
+           2.0 family backdoor; not confirmed in this TanStack
+           variant but worth checking)
+   10. Hunt outbound from build hosts since 2026-05-11 for traffic
+       to Session / Oxen / Lokinet infrastructure. The TanStack
+       worm embeds the full Session signalservice Protocol Buffers
+       schema and uses Session for credential exfil. No fixed
+       port/IP set is published; flag any unexpected egress from
+       CI runners and dev workstations to non-corporate domains.
+   11. Pull Wazuh / SIEM for any host where this script reported
+       severe. Treat as confirmed incident, open IR ticket.
